@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>demail client</title>
+    </head>
+    <body style="background-color: rgb(59, 59, 59);color: #ffdddd" >
+        Имя пользователя: <input type="text" id="un" name="username"></input><br>
+        Пароль: <input type="password" id="ps" name="password"></input><br><hr><br>
+        Имя пользователя получателя: <input type="text" id="un1"></input><br>
+        Данные: <textarea type="text" id="cont"></textarea><br><hr><br>
+        <button id="reg-btn">Зарегестрироваться</button><br>
+        <button id="send-btn">Отправить</button><br>
+        <button id="get-sended-btn">Что я отправил</button><br>
+        <button id="get-recived-btn">Что мне отправили</button><br>
+        <button id="cls">очистить вывод</button><br>
+        <code style="background-color: rgb(20, 20, 20)" id="outputs">вывод:</code>
+        <script>
+            const l_username = document.getElementById("un");
+            const l_pass = document.getElementById("ps");
+            const l_recver = document.getElementById("un1");
+            const l_content = document.getElementById("cont");
+            const l_result = document.getElementById("outputs");
+            const serv = "DMAIL";
+            l_content.value = "";
+            l_recver.value = "";
+            l_result.innerText += '\n';
+            document.getElementById("cls").onclick = async () => {
+                l_result.innerText = 'вывод:\n';
+            };
+            document.getElementById("get-sended-btn").onclick = async () => {
+                const response = await fetch(
+                    serv + `/get_all_smessages/${l_pass.value}/${l_username.value}`
+                );
+                l_result.innerText += (await response.text()) + '\n';
+            };
+            document.getElementById("get-recived-btn").onclick = async () => {
+                const response = await fetch(
+                    serv + `/get_all_rmessages/${l_pass.value}/${l_username.value}`
+                );
+                l_result.innerText += (await response.text()) + '\n';
+            };
+            document.getElementById("reg-btn").onclick = async () => {
+                const response = await fetch(
+                    serv + `/reg/${l_pass.value}/${l_username.value}`
+                );
+                l_result.innerText += (await response.text()) + '\n';
+            };
+            document.getElementById("send-btn").onclick = async () => {
+                const response = await fetch(
+                    serv + `/send/${l_content.value}/${l_username.value}/${l_pass.value}/${l_recver.value}`
+                );
+                l_result.innerText += (await response.text()) + '\n';
+            };
+        </script>
+    </body>
+</html>
