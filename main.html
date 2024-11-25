@@ -12,6 +12,8 @@
         <button id="reg-btn">Зарегестрироваться</button><br>
         <button id="send-btn">Отправить</button><br>
         <button id="get-sended-btn">Что я отправил</button><br>
+        <button id="cls-sended-btn">Отчистить список того я отправил</button><br>
+        <button id="cls-recived-btn">Отчистить список того мне отправили</button><br>
         <button id="get-recived-btn">Что мне отправили</button><br>
         <button id="cls">очистить вывод</button><br>
         <code style="background-color: rgb(20, 20, 20)" id="outputs">вывод:</code>
@@ -21,34 +23,45 @@
             const l_recver = document.getElementById("un1");
             const l_content = document.getElementById("cont");
             const l_result = document.getElementById("outputs");
-            const serv = "DMAIL";
             l_content.value = "";
             l_recver.value = "";
             l_result.innerText += '\n';
             document.getElementById("cls").onclick = async () => {
                 l_result.innerText = 'вывод:\n';
             };
+            document.getElementById("cls-sended-btn").onclick = async () => {
+                const response = await fetch(
+                    `https://server.ip:9932/clear_all_smessages/${l_pass.value}/${l_username.value}`
+                );
+                l_result.innerText += (await response.text()) + '\n';
+            };
+            document.getElementById("cls-recived-btn").onclick = async () => {
+                const response = await fetch(
+                    `https://server.ip:9932/clear_all_rmessages/${l_pass.value}/${l_username.value}`
+                );
+                l_result.innerText += (await response.text()) + '\n';
+            };
             document.getElementById("get-sended-btn").onclick = async () => {
                 const response = await fetch(
-                    serv + `/get_all_smessages/${l_pass.value}/${l_username.value}`
+                    `https://server.ip:9932/get_all_smessages/${l_pass.value}/${l_username.value}`
                 );
                 l_result.innerText += (await response.text()) + '\n';
             };
             document.getElementById("get-recived-btn").onclick = async () => {
                 const response = await fetch(
-                    serv + `/get_all_rmessages/${l_pass.value}/${l_username.value}`
+                    `https://server.ip:9932/get_all_rmessages/${l_pass.value}/${l_username.value}`
                 );
                 l_result.innerText += (await response.text()) + '\n';
             };
             document.getElementById("reg-btn").onclick = async () => {
                 const response = await fetch(
-                    serv + `/reg/${l_pass.value}/${l_username.value}`
+                    `https://server.ip:9932/reg/${l_pass.value}/${l_username.value}`
                 );
                 l_result.innerText += (await response.text()) + '\n';
             };
             document.getElementById("send-btn").onclick = async () => {
                 const response = await fetch(
-                    serv + `/send/${l_content.value}/${l_username.value}/${l_pass.value}/${l_recver.value}`
+                    `https://server.ip:9932/send/${l_content.value}/${l_username.value}/${l_pass.value}/${l_recver.value}`
                 );
                 l_result.innerText += (await response.text()) + '\n';
             };
