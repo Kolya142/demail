@@ -64,13 +64,15 @@ def check_password(user, passwd):
 
 def generate_key(p, s, u):
     global keys
+    if s in keys:
+        return keys[s]
     key = hash(p + s + salt + os.urandom(32).hex())
     keys[s] = key
     return key
 
 def simple_encoder(raw_key, message):
     key = int.from_bytes(sha512(raw_key.encode()).digest(), 'big')
-    for _ in range(32):
+    for _ in range(256):
         key ^= key << 8
         key ^= key >> 16
     msg = int.from_bytes(message, 'big') ^ key
@@ -109,7 +111,7 @@ def get_all_rmessages(passwd, user):
         if len(sp) != 3:
             continue
         c = bytes.fromhex(sp[2])
-        out += f'{sp[0]}({sp[1]}): {simple_encoder(keys[sp[0]], c).decode()}'
+        out += f'{sp[0]}({sp[1]}): {simple_encoder(keys[sp[0]], c).decode(errors='ignore')}\n'
     return out
 
 @app.route('/clear_all_rmessages/<passwd>/<user>')
@@ -141,7 +143,7 @@ def get_all_smessages(passwd, user):
         if len(sp) != 3:
             continue
         c = bytes.fromhex(sp[2])
-        out += f'{simple_encoder(key, c).decode()}({sp[1]}) -> {sp[0]}'
+        out += f'{simple_encoder(key, c).decode(errors='ignore')}({sp[1]}) -> {sp[0]}\n'
     return out
 
 @app.route('/reg/<passwd>/<user>')
