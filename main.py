@@ -1,6 +1,7 @@
 from hashlib import sha256, sha512
 import atexit
-from flask import Flask
+from flask import Flask, request
+from asgiref.wsgi import WsgiToAsgi
 import datetime
 import json
 import stat
@@ -9,7 +10,7 @@ import os
 def get_chmod(path):
     return stat.S_IMODE(os.stat(path).st_mode)
 
-def srm(path):
+def srm(path):    
     for _ in range(10):
         with open(path, 'wb') as f:
             f.write(os.urandom(5000))
@@ -79,10 +80,10 @@ def simple_encoder(raw_key, message):
 
     return msg.to_bytes((msg.bit_length() + 7) // 8, 'big')
 
-print(simple_encoder("123", simple_encoder("122", b"hello, world!")))
 
-@app.route('/send/<content>/<sender>/<passwd>/<user>')
-def send(content, sender, passwd, user):
+@app.route('/send/<sender>/<passwd>/<user>', methods = ['POST'])
+def send(sender, passwd, user):
+    content = request.data.decode()
     if not check_password(sender, passwd):
         print("failed: username incorrect")
         return f"Failed: login/password incorrect"
@@ -94,7 +95,7 @@ def send(content, sender, passwd, user):
 
     if os.path.exists(f"accounts/{user}"):
         with open(f"accounts/{user}/recived.txt", 'a') as f:
-            f.write(f"{sender} {dt} {content}\n")
+            f.write(f"{sender} {dt} {sha512(key.encode()).hexdigest()} {content}\n")
     else:
         return f"Failed: user {user} doent exists"
     return "sended"
@@ -107,10 +108,13 @@ def get_all_rmessages(passwd, user):
     msgs = open(f"accounts/{user}/recived.txt").read().split('\n')
     out = ""
     for msg in msgs:
-        sp = msg.split(maxsplit=3)
-        if len(sp) != 3:
+        sp = msg.split(maxsplit=4)
+        if len(sp) != 4:
             continue
-        c = bytes.fromhex(sp[2])
+        c = bytes.fromhex(sp[3])
+        if sp[0] not in keys or sha512(keys[sp[0]].encode()).hexdigest() != sp[2]:
+            out += f"у меня нет ключа для расшифровывания этого сообщения({c.hex()})\n"
+            continue
         out += f'{sp[0]}({sp[1]}): {simple_encoder(keys[sp[0]], c).decode(errors='ignore')}\n'
     return out
 
@@ -161,5 +165,11 @@ def reg(passwd, user):
 def main():
     return open("main.html")
 
+def create_app():
+    app.config['DEBUG'] = False
+    app.config['ENV'] = 'production'
+    return app
+
+app = create_app()
 if __name__ == '__main__':
-    app.run(port = 9932, host="0.0.0.0", ssl_context=('/server/cert.crt', '/server/cert.key'))
+    app.run("0.0.0.0", 9932)
