@@ -5,18 +5,18 @@
         <title>demail client</title>
     </head>
     <body style="background-color: rgb(59, 59, 59);color: #ffdddd" >
-        Имя пользователя: <input type="text" id="un" name="username"></input><br>
-        Пароль: <input type="password" id="ps" name="password"></input><br><hr><br>
-        Имя пользователя получателя: <input type="text" id="un1"></input><br>
-        Данные: <textarea type="text" id="cont"></textarea><br><hr><br>
-        <button id="reg-btn">Зарегестрироваться</button><br>
-        <button style="color: #33dd33" id="send-btn">Отправить</button><br>
-        <button style="color: #3333dd" id="get-sended-btn">Что я отправил</button><br>
-        <button style="color: #3333dd" id="get-recived-btn">Что мне отправили</button><br>
-        <button style="color: #937777" id="cls">очистить вывод</button><br>
-        <button style="color: #dd3333" id="cls-sended-btn">Отчистить список того я отправил</button><br>
-        <button style="color: #dd3333" id="cls-recived-btn">Отчистить список того мне отправили</button><br>
-        <code style="background-color: rgb(20, 20, 20)" id="outputs">вывод:</code>
+        Username: <input type="text" id="un" name="username"></input><br>
+        Password: <input type="password" id="ps" name="password"></input><br><hr><br>
+        Receiver's Username: <input type="text" id="un1"></input><br>
+        Message: <textarea type="text" id="cont"></textarea><br><hr><br>
+        <button id="reg-btn">Register</button><br>
+        <button style="color: #33dd33" id="send-btn">Send</button><br>
+        <button style="color: #3333dd" id="get-sended-btn">Sents</button><br>
+        <button style="color: #3333dd" id="get-recived-btn">Received</button><br>
+        <button style="color: #937777" id="cls">Clear output</button><br>
+        <button style="color: #dd3333" id="cls-sended-btn">Clear sent</button><br>
+        <button style="color: #dd3333" id="cls-recived-btn">Clear recieved</button><br>
+        <code style="background-color: rgb(20, 20, 20)" id="outputs">output:</code>
         <script>
             const l_username = document.getElementById("un");
             const l_pass = document.getElementById("ps");
@@ -27,41 +27,50 @@
             l_recver.value = "";
             l_result.innerText += '\n';
             document.getElementById("cls").onclick = async () => {
-                l_result.innerText = 'вывод:\n';
+                l_result.innerText = 'output:\n';
             };
             document.getElementById("cls-sended-btn").onclick = async () => {
                 const response = await fetch(
-                    `https://sh-fall.ru:9932/clear_all_smessages/${l_pass.value}/${l_username.value}`
+                    `http://127.0.0.1:9999/clear_all_smessages/${l_pass.value}/${l_username.value}`
                 );
                 l_result.innerText += (await response.text()) + '\n';
             };
             document.getElementById("cls-recived-btn").onclick = async () => {
                 const response = await fetch(
-                    `https://sh-fall.ru:9932/clear_all_rmessages/${l_pass.value}/${l_username.value}`
+                    `http://127.0.0.1:9999/clear_all_rmessages/${l_pass.value}/${l_username.value}`
                 );
                 l_result.innerText += (await response.text()) + '\n';
             };
             document.getElementById("get-sended-btn").onclick = async () => {
                 const response = await fetch(
-                    `https://sh-fall.ru:9932/get_all_smessages/${l_pass.value}/${l_username.value}`
+                    `http://127.0.0.1:9999/get_all_smessages/${l_pass.value}/${l_username.value}`
                 );
                 l_result.innerText += (await response.text()) + '\n';
             };
             document.getElementById("get-recived-btn").onclick = async () => {
                 const response = await fetch(
-                    `https://sh-fall.ru:9932/get_all_rmessages/${l_pass.value}/${l_username.value}`
+                    `http://127.0.0.1:9999/get_all_rmessages/${l_pass.value}/${l_username.value}`
                 );
                 l_result.innerText += (await response.text()) + '\n';
             };
             document.getElementById("reg-btn").onclick = async () => {
                 const response = await fetch(
-                    `https://sh-fall.ru:9932/reg/${l_pass.value}/${l_username.value}`
+                    `http://127.0.0.1:9999/reg/${l_pass.value}/${l_username.value}`
                 );
                 l_result.innerText += (await response.text()) + '\n';
             };
             document.getElementById("send-btn").onclick = async () => {
+                const myHeaders = new Headers();
+                myHeaders.append("Content-Type", "text/plain");
+                const options = {
+                    method: "POST",
+                    headers: myHeaders,
+                    body: l_content.value,
+                    redirect: "follow"
+                };
                 const response = await fetch(
-                    `https://sh-fall.ru:9932/send/${l_content.value}/${l_username.value}/${l_pass.value}/${l_recver.value}`
+                    `http://127.0.0.1:9999/send/${l_username.value}/${l_pass.value}/${l_recver.value}`,
+                    options
                 );
                 l_result.innerText += (await response.text()) + '\n';
             };

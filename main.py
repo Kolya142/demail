@@ -1,5 +1,7 @@
-from hashlib import sha256, sha512
+from hashlib import sha512, pbkdf2_hmac
 import atexit
+import random
+import string
 from flask import Flask, request
 from asgiref.wsgi import WsgiToAsgi
 import datetime
@@ -10,14 +12,25 @@ import os
 def get_chmod(path):
     return stat.S_IMODE(os.stat(path).st_mode)
 
-def srm(path):    
+def srm(path):
     for _ in range(10):
         with open(path, 'wb') as f:
             f.write(os.urandom(5000))
     os.remove(demail_keys_path)
 
 app = Flask(__name__)
-salt_path = "/root/.demail-salt"
+salt_path = "/root/.demail-salt" # defaults
+demail_keys_path = "/root/.demail-keys.json"
+
+with open("conf.yml") as f:
+    lines = f.read().split('\n')
+    for line in lines:
+        sp = line.split(': ')
+        if sp[0] == 'salt':
+            salt_path = sp[1]
+        if sp[0] == 'keys':
+            demail_keys_path = sp[1]
+
 if get_chmod(salt_path) != 0o600:
     print("ERROR: too open salt file, requires 600")
     r = input("remove it for secure?(Y/N)")
@@ -26,8 +39,6 @@ if get_chmod(salt_path) != 0o600:
     exit(1)
 salt = open(salt_path).read()
 keys = {}
-
-demail_keys_path = "/root/.demail-keys.json"
 
 if os.path.exists(demail_keys_path):
     if get_chmod(salt_path) != 0o600:
@@ -49,7 +60,7 @@ def cleanup():
     os.chmod(demail_keys_path, 0o600)
 
 def hash(v):
-    return sha256(v.encode()).hexdigest()
+    return sha512(v.encode()).hexdigest()
 
 def check_username(user):
     return os.path.exists(f"accounts/{user}")
@@ -67,19 +78,58 @@ def generate_key(p, s, u):
     global keys
     if s in keys:
         return keys[s]
-    key = hash(p + s + salt + os.urandom(32).hex())
+    iv = os.urandom(16).hex()
+    combined = f"{s}:{p}:{salt}:{u}:{iv}".encode()
+    key = pbkdf2_hmac('sha512', combined, salt.encode(), 40960, dklen=64).hex()
     keys[s] = key
     return key
 
-def simple_encoder(raw_key, message):
+def encrypt(raw_key, message):
     key = int.from_bytes(sha512(raw_key.encode()).digest(), 'big')
-    for _ in range(256):
+    key ^= key << 1
+    for i in range(512):
         key ^= key << 8
+        key ^= key | (key << 1)
         key ^= key >> 16
+        j = i % len(raw_key)
+        key ^= int.from_bytes(raw_key[j].encode(), 'little')
+        key ^= int.from_bytes(salt[i % len(salt)].encode())
     msg = int.from_bytes(message, 'big') ^ key
+    out = bytearray()
+    state = key & 0xff
+    for i, b in enumerate(message):
+        out.append(b ^ state ^ ord(raw_key[i % len(raw_key)]) ^ (key % 256))
+        state ^= b
+        state <<= 1
+        state ^= b >> 1
+        state &= 0xff
+    return bytes(out)
 
-    return msg.to_bytes((msg.bit_length() + 7) // 8, 'big')
+def decrypt(raw_key, encrypted_message):
+    key = int.from_bytes(sha512(raw_key.encode()).digest(), 'big')
+    key ^= key << 1
+    for i in range(512):
+        key ^= key << 8
+        key ^= key | (key << 1)
+        key ^= key >> 16
+        j = i % len(raw_key)
+        key ^= int.from_bytes(raw_key[j].encode(), 'little')
+        key ^= int.from_bytes(salt[i % len(salt)].encode())
 
+    out = bytearray()
+    state = key & 0xff
+
+    for i in range(0, len(encrypted_message)):
+        encrypted_char = encrypted_message[i]
+        original_char = encrypted_char ^ state ^ ord(raw_key[i % len(raw_key)]) ^ (key % 256)
+        out.append(original_char)
+
+        state ^= original_char
+        state <<= 1
+        state ^= original_char >> 1
+        state &= 0xff
+
+    return bytes(out)
 
 @app.route('/send/<sender>/<passwd>/<user>', methods = ['POST'])
 def send(sender, passwd, user):
@@ -89,7 +139,7 @@ def send(sender, passwd, user):
         return f"Failed: login/password incorrect"
     dt = f"{datetime.datetime.now()}".replace(' ', '-')
     key = generate_key(passwd, sender, user)
-    content = simple_encoder(key, content.encode()).hex()
+    content = encrypt(key, content.encode()).hex()
     with open(f"accounts/{sender}/sended.txt", 'a') as f:
         f.write(f"{user} {dt} {content}\n")
 
@@ -98,7 +148,7 @@ def send(sender, passwd, user):
             f.write(f"{sender} {dt} {sha512(key.encode()).hexdigest()} {content}\n")
     else:
         return f"Failed: user {user} doent exists"
-    return "sended"
+    return "sent"
 
 @app.route('/get_all_rmessages/<passwd>/<user>')
 def get_all_rmessages(passwd, user):
@@ -115,7 +165,7 @@ def get_all_rmessages(passwd, user):
         if sp[0] not in keys or sha512(keys[sp[0]].encode()).hexdigest() != sp[2]:
             out += f"у меня нет ключа для расшифровывания этого сообщения({c.hex()})\n"
             continue
-        out += f'{sp[0]}({sp[1]}): {simple_encoder(keys[sp[0]], c).decode(errors='ignore')}\n'
+        out += f'{sp[0]}({sp[1]}): {decrypt(keys[sp[0]], c).decode(errors='ignore')}\n'
     return out
 
 @app.route('/clear_all_rmessages/<passwd>/<user>')
@@ -124,7 +174,7 @@ def clear_all_rmessages(passwd, user):
         print("failed: username incorrect")
         return f"Failed: login/password incorrect"
     open(f"accounts/{user}/recived.txt", 'w').write("")
-    return "Cleared"
+    return "Cleared r"
 
 @app.route('/clear_all_smessages/<passwd>/<user>')
 def clear_all_smessages(passwd, user):
@@ -132,7 +182,7 @@ def clear_all_smessages(passwd, user):
         print("failed: username incorrect")
         return f"Failed: login/password incorrect"
     open(f"accounts/{user}/sended.txt", 'w').write("")
-    return "Cleared"
+    return "Cleared s"
 
 @app.route('/get_all_smessages/<passwd>/<user>')
 def get_all_smessages(passwd, user):
@@ -147,7 +197,7 @@ def get_all_smessages(passwd, user):
         if len(sp) != 3:
             continue
         c = bytes.fromhex(sp[2])
-        out += f'{simple_encoder(key, c).decode(errors='ignore')}({sp[1]}) -> {sp[0]}\n'
+        out += f'{decrypt(key, c).decode(errors='ignore')}({sp[1]}) -> {sp[0]}\n'
     return out
 
 @app.route('/reg/<passwd>/<user>')
